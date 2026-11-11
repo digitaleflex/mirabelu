@@ -1,0 +1,43 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: mirabelu, POSTGRES_PASSWORD: mirabelu, POSTGRES_DB: postgres }
+        ports: ["54329:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mirabelu" --health-interval 5s --health-retries 10
+    env:
+      TEST_DATABASE_ADMIN_URL: postgresql://mirabelu:mirabelu@127.0.0.1:54329/postgres
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - name: Installer ffmpeg (tests du pipeline audio)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Les migrations versionnées correspondent au schéma Prisma
+        working-directory: packages/database
+        run: |
+          PGPASSWORD=mirabelu psql -h 127.0.0.1 -p 54329 -U mirabelu postgres -c 'CREATE DATABASE shadow'
+          pnpm exec prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema prisma/schema.prisma \
+            --exit-code
+        env:
+          SHADOW_DATABASE_URL: postgresql://mirabelu:mirabelu@127.0.0.1:54329/shadow

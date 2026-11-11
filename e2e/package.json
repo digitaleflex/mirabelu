@@ -1,0 +1,27 @@
+{
+  "name": "@mirabelu/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "stack": "tsx src/stack.ts",
+    "flows": "tsx src/flows.ts",
+    "typecheck": "tsc --noEmit",
+    "generate": "echo ok"
+  },
+  "dependencies": {
+    "@mirabelu/api": "workspace:*",
+    "@mirabelu/audio": "workspace:*",
+    "@mirabelu/billing": "workspace:*",
+    "@mirabelu/config": "workspace:*",
+    "@mirabelu/database": "workspace:*",
+    "@mirabelu/storage": "workspace:*",
+    "@mirabelu/worker": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "playwright": "^1.55.0",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3"
+  }
+}
