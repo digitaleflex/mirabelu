@@ -1,0 +1,314 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUBSCRIBER
+  ADMIN
+}
+
+enum PlanCode {
+  QUARTERLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+}
+
+enum PaymentProvider {
+  FEDAPAY
+  KKIAPAY
+  MOCK
+  MANUAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+}
+
+enum BookStatus {
+  DRAFT
+  PROCESSING
+  READY
+  PUBLISHED
+  UNPUBLISHED
+}
+
+enum RightsStatus {
+  UNVERIFIED
+  VERIFIED
+}
+
+enum AssetKind {
+  ORIGINAL
+  STREAM
+}
+
+enum ImportStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum ImportStage {
+  QUEUED
+  FETCH
+  HASH
+  PROBE
+  VALIDATE
+  NORMALIZE
+  UPLOAD_ORIGINAL
+  UPLOAD_STREAM
+  FINALIZE
+  DONE
+}
+
+enum ImportSourceType {
+  LOCAL_PATH
+  AURA_OBJECT
+}
+
+model User {
+  id           String         @id @default(uuid())
+  phone        String         @unique
+  name         String?
+  role         Role           @default(SUBSCRIBER)
+  createdAt    DateTime       @default(now())
+  lastLoginAt  DateTime?
+  refreshTokens RefreshToken[]
+  subscriptions Subscription[]
+  payments     Payment[]
+  favorites    Favorite[]
+  bookmarks    Bookmark[]
+  progress     Progress[]
+  listenEvents ListenEvent[]
+}
+
+model OtpCode {
+  id         String    @id @default(uuid())
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String
+  plan      PlanCode
+  status    SubscriptionStatus @default(ACTIVE)
+  startsAt  DateTime
+  endsAt    DateTime
+  paymentId String?            @unique
+  note      String?
+  createdAt DateTime           @default(now())
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payment   Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, endsAt])
+}
+
+model Payment {
+  id            String          @id @default(uuid())
+  userId        String
+  plan          PlanCode
+  amountXof     Int
+  currency      String          @default("XOF")
+  provider      PaymentProvider
+  providerRef   String?
+  status        PaymentStatus   @default(PENDING)
+  failureReason String?
+  createdAt     DateTime        @default(now())
+  paidAt        DateTime?
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription  Subscription?
+
+  @@unique([provider, providerRef])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Author {
+  id    String @id @default(uuid())
+  name  String
+  slug  String @unique
+  books Book[]
+}
+
+model Category {
+  id       String @id @default(uuid())
+  slug     String @unique
+  name     String
+  position Int    @default(0)
+  books    Book[]
+}
+
+model Book {
+  id           String         @id @default(uuid())
+  slug         String         @unique
+  title        String
+  authorId     String
+  categoryId   String
+  description  String         @default("")
+  language     String         @default("fr")
+  coverUrl     String?
+  durationSec  Int            @default(0)
+  status       BookStatus     @default(DRAFT)
+  rightsStatus RightsStatus   @default(UNVERIFIED)
+  rightsNote   String?
+  territories  String[]       @default([])
+  isPriority   Boolean        @default(false)
+  publishedAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  author       Author         @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  category     Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  assets       AudioAsset[]
+  chapters     Chapter[]
+  essentials   BookEssentials?
+  favorites    Favorite[]
+  bookmarks    Bookmark[]
+  progress     Progress[]
+  listenEvents ListenEvent[]
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
+  @@index([authorId])
+}
+
+model AudioAsset {
+  id          String    @id @default(uuid())
+  bookId      String
+  kind        AssetKind
+  auraObjectId String
+  sha256      String
+  sizeBytes   BigInt
+  durationSec Int
+  mimeType    String
+  bitrateKbps Int?
+  createdAt   DateTime  @default(now())
+  book        Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, kind])
+  @@unique([kind, sha256])
+}
+
+model Chapter {
+  id       String @id @default(uuid())
+  bookId   String
+  position Int
+  title    String
+  startSec Int
+  endSec   Int
+  book     Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([bookId, position])
+}
+
+model BookEssentials {
+  bookId      String   @id
+  understandMd String  @default("")
+  applyMd     String   @default("")
+  published   Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
+model Favorite {
+  userId    String
+  bookId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookId])
+}
+
+model Bookmark {
+  id          String   @id @default(uuid())
+  userId      String
+  bookId      String
+  positionSec Int
+  note        String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, bookId])
+}
+
+model Progress {
+  userId      String
+  bookId      String
+  positionSec Int
+  completed   Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookId])
+  @@index([userId, updatedAt])
+}
+
+model ListenEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  bookId    String
+  seconds   Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([bookId])
+}
+
+model ImportJob {
+  id          String           @id @default(uuid())
+  status      ImportStatus     @default(QUEUED)
+  stage       ImportStage      @default(QUEUED)
+  sourceType  ImportSourceType
+  sourceRef   String
+  bookId      String?
+  title       String?
+  authorName  String?
+  categorySlug String?
+  sha256      String?
+  error       String?
+  attempts    Int              @default(0)
+  createdById String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  finishedAt  DateTime?
+
+  @@index([status, createdAt])
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalEnv": ["NODE_ENV"],
+  "tasks": {
+    "generate": { "cache": false },
+    "build": {
+      "dependsOn": ["^build", "generate"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "typecheck": { "dependsOn": ["generate"] },
+    "test": { "dependsOn": ["generate"], "cache": false },
+    "dev": { "dependsOn": ["generate"], "cache": false, "persistent": true }
+  }
+}
