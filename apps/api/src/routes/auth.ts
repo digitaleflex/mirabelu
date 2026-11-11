@@ -23,7 +23,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       httpOnly: true,
       secure: env.COOKIE_SECURE,
       sameSite: 'lax',
-      path: '/auth',
+      path: env.REFRESH_COOKIE_PATH,
       maxAge: env.REFRESH_TOKEN_TTL_DAYS * 86_400,
     });
   }
@@ -113,7 +113,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     const row = await db.refreshToken.findUnique({ where: { tokenHash: hashToken(raw) }, include: { user: true } });
     const now = clock();
     if (!row || row.expiresAt <= now) {
-      reply.clearCookie(REFRESH_COOKIE, { path: '/auth' });
+      reply.clearCookie(REFRESH_COOKIE, { path: env.REFRESH_COOKIE_PATH });
       throw unauthorized('Session expirée', 'SESSION_EXPIRED');
     }
     if (row.revokedAt) {
@@ -121,7 +121,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       if (now.getTime() - row.revokedAt.getTime() > REUSE_GRACE_MS) {
         await db.refreshToken.updateMany({ where: { userId: row.userId, revokedAt: null }, data: { revokedAt: now } });
       }
-      reply.clearCookie(REFRESH_COOKIE, { path: '/auth' });
+      reply.clearCookie(REFRESH_COOKIE, { path: env.REFRESH_COOKIE_PATH });
       throw unauthorized('Session expirée', 'SESSION_EXPIRED');
     }
     const revoked = await db.refreshToken.updateMany({ where: { id: row.id, revokedAt: null }, data: { revokedAt: now } });
@@ -136,7 +136,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     if (raw) {
       await db.refreshToken.updateMany({ where: { tokenHash: hashToken(raw), revokedAt: null }, data: { revokedAt: clock() } });
     }
-    reply.clearCookie(REFRESH_COOKIE, { path: '/auth' });
+    reply.clearCookie(REFRESH_COOKIE, { path: env.REFRESH_COOKIE_PATH });
     return { ok: true };
   });
 };

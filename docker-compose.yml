@@ -1,0 +1,76 @@
+# Pile de démonstration locale. En production : secrets via l'orchestrateur,
+# OTP_DELIVERY=webhook, vrais prestataires de paiement, HTTPS devant le site web.
+name: mirabelu
+
+x-api-env: &api-env
+  NODE_ENV: ${NODE_ENV:-development}
+  DATABASE_URL: postgresql://mirabelu:${POSTGRES_PASSWORD:-mirabelu}@db:5432/mirabelu
+  AURA_API_URL: ${AURA_API_URL:?AURA_API_URL est requis}
+  AURA_API_TOKEN: ${AURA_API_TOKEN:?AURA_API_TOKEN est requis}
+  AURA_BUCKET: ${AURA_BUCKET:-}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mirabelu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mirabelu}
+      POSTGRES_DB: mirabelu
+    volumes: [dbdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mirabelu"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile, target: migrate }
+    environment: { DATABASE_URL: "postgresql://mirabelu:${POSTGRES_PASSWORD:-mirabelu}@db:5432/mirabelu" }
+    depends_on: { db: { condition: service_healthy } }
+    restart: "no"
+
+  api:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile, target: api }
+    environment:
+      <<: *api-env
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET est requis (32 caractères minimum)}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      REFRESH_COOKIE_PATH: /api/auth
+      ADMIN_PHONES: ${ADMIN_PHONES:-}
+      DEFAULT_PHONE_COUNTRY: ${DEFAULT_PHONE_COUNTRY:-BJ}
+      OTP_DELIVERY: ${OTP_DELIVERY:-console}
+      OTP_WEBHOOK_URL: ${OTP_WEBHOOK_URL:-}
+      OTP_WEBHOOK_TOKEN: ${OTP_WEBHOOK_TOKEN:-}
+      PAYMENT_PROVIDERS: ${PAYMENT_PROVIDERS:-mock}
+      FEDAPAY_SECRET_KEY: ${FEDAPAY_SECRET_KEY:-}
+      FEDAPAY_ENV: ${FEDAPAY_ENV:-sandbox}
+      FEDAPAY_WEBHOOK_SECRET: ${FEDAPAY_WEBHOOK_SECRET:-}
+      KKIAPAY_PUBLIC_KEY: ${KKIAPAY_PUBLIC_KEY:-}
+      KKIAPAY_PRIVATE_KEY: ${KKIAPAY_PRIVATE_KEY:-}
+      KKIAPAY_SECRET: ${KKIAPAY_SECRET:-}
+      KKIAPAY_SANDBOX: ${KKIAPAY_SANDBOX:-true}
+      KKIAPAY_WEBHOOK_SECRET: ${KKIAPAY_WEBHOOK_SECRET:-}
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile, target: worker }
+    environment: *api-env
+    volumes: [imports:/data/imports]
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  web:
+    build: { context: ., dockerfile: infrastructure/docker/Dockerfile, target: web }
+    environment: { API_URL: "http://api:4000" }
+    ports: ["3000:3000"]
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  dbdata:
+  imports:

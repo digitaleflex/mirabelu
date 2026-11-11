@@ -40,6 +40,8 @@ export const apiEnvSchema = base.extend({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
   COOKIE_SECURE: bool.default(false),
+  /** Chemin du cookie de session : « /api/auth » quand l'API est exposée sous /api par le proxy du site web. */
+  REFRESH_COOKIE_PATH: z.string().startsWith('/').default('/auth'),
   /** Numéros (E.164) promus administrateurs à la connexion. */
   ADMIN_PHONES: list,
   DEFAULT_PHONE_COUNTRY: z.string().length(2).default('BJ'),

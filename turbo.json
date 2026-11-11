@@ -1,14 +1,15 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "globalEnv": ["NODE_ENV"],
+  "globalPassThroughEnv": ["PRISMA_*", "DATABASE_URL", "TEST_DATABASE_URL", "E2E_*", "NEXT_TELEMETRY_DISABLED", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS"],
   "tasks": {
     "generate": { "cache": false },
     "build": {
-      "dependsOn": ["^build", "generate"],
+      "dependsOn": ["^build", "^generate", "generate"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
-    "typecheck": { "dependsOn": ["generate"] },
-    "test": { "dependsOn": ["generate"], "cache": false },
-    "dev": { "dependsOn": ["generate"], "cache": false, "persistent": true }
+    "typecheck": { "dependsOn": ["^generate", "generate"] },
+    "test": { "dependsOn": ["^generate", "generate"], "cache": false },
+    "dev": { "dependsOn": ["^generate", "generate"], "cache": false, "persistent": true }
   }
 }

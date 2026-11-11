@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "main": "./src/main.ts",
-  "exports": { "./app": "./src/app.ts" },
+  "exports": {
+    "./app": "./src/app.ts"
+  },
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "start": "node dist/main.js",
@@ -22,8 +24,12 @@
     "@mirabelu/contracts": "workspace:*",
     "@mirabelu/database": "workspace:*",
     "@mirabelu/storage": "workspace:*",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
     "fastify": "^5.6.1",
     "jose": "^6.1.0",
+    "pg": "^8.16.3",
+    "pg-boss": "^11.1.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
