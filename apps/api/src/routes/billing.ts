@@ -9,7 +9,7 @@ interface PaymentRow {
   plan: 'QUARTERLY' | 'ANNUAL';
   provider: string;
   amountXof: number;
-  status: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELED';
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELED' | 'REFUNDED';
   createdAt: Date;
   paidAt: Date | null;
 }

@@ -5,7 +5,7 @@ import { ErrorBox, Loading } from '@/components/states';
 import { api, ApiError } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
 
-interface U { id: string; phone: string; name: string | null; role: string; lastLoginAt: string | null; subscriptionEndsAt: string | null }
+interface U { id: string; phone: string; name: string | null; role: string; suspendedAt: string | null; lastLoginAt: string | null; subscriptionEndsAt: string | null }
 
 export default function AdminUsers() {
   const [q, setQ] = useState('');
@@ -22,6 +22,20 @@ export default function AdminUsers() {
     } catch (e) { setMsg({ kind: 'error', text: e instanceof ApiError ? e.message : 'Échec.' }); }
   }
 
+  async function toggleSuspension(u: U) {
+    let body: { reason: string } | undefined;
+    if (!u.suspendedAt) {
+      const reason = window.prompt(`Motif de la suspension de ${u.phone} :`);
+      if (!reason || reason.trim().length < 3) return;
+      body = { reason };
+    }
+    try {
+      await api(`/admin/users/${u.id}/${u.suspendedAt ? 'unsuspend' : 'suspend'}`, { method: 'POST', body: body ?? {} });
+      setMsg({ kind: 'ok', text: u.suspendedAt ? `${u.phone} réactivé.` : `${u.phone} suspendu : ses sessions sont fermées.` });
+      users.reload();
+    } catch (e) { setMsg({ kind: 'error', text: e instanceof ApiError ? e.message : 'Échec.' }); }
+  }
+
   return (
     <div className="page wide">
       <div className="page-head"><h1>Abonnés</h1></div>
@@ -34,11 +48,14 @@ export default function AdminUsers() {
           <thead><tr><th>Numéro</th><th>Nom</th><th>Abonnement</th><th>Dernière connexion</th><th /></tr></thead>
           <tbody>{users.data.items.map((u) => (
             <tr key={u.id}>
-              <td>{u.phone}{u.role === 'ADMIN' && <> <span className="pill">admin</span></>}</td>
+              <td>{u.phone}{u.role === 'ADMIN' && <> <span className="pill">admin</span></>}{u.suspendedAt && <> <span className="pill bad">suspendu</span></>}</td>
               <td>{u.name ?? '—'}</td>
               <td>{u.subscriptionEndsAt ? `jusqu’au ${new Date(u.subscriptionEndsAt).toLocaleDateString('fr-FR')}` : '—'}</td>
               <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('fr-FR') : '—'}</td>
-              <td><button className="link" onClick={() => void grant(u)}>Offrir 1 an</button></td>
+              <td>
+                <button className="link" onClick={() => void grant(u)}>Offrir 1 an</button>
+                {u.role !== 'ADMIN' && <> · <button className="link" onClick={() => void toggleSuspension(u)}>{u.suspendedAt ? 'Réactiver' : 'Suspendre'}</button></>}
+              </td>
             </tr>))}</tbody>
         </table></div>
       )}

@@ -44,6 +44,12 @@ export const apiEnvSchema = base.extend({
   REFRESH_COOKIE_PATH: z.string().startsWith('/').default('/auth'),
   /** Numéros (E.164) promus administrateurs à la connexion. */
   ADMIN_PHONES: list,
+  /**
+   * Nombre de proxys de confiance devant l'API (0 = aucun : l'adresse IP vient de la connexion TCP).
+   * Le site web qui proxifie /api compte pour 1. Ne jamais mettre plus que la réalité : l'en-tête
+   * X-Forwarded-For est sinon forgeable et contourne les limites de débit.
+   */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
   DEFAULT_PHONE_COUNTRY: z.string().length(2).default('BJ'),
 
   // --- OTP ----------------------------------------------------------------
@@ -51,6 +57,13 @@ export const apiEnvSchema = base.extend({
   OTP_DELIVERY: z.enum(['console', 'webhook']).default('console'),
   OTP_WEBHOOK_URL: z.string().url().optional(),
   OTP_WEBHOOK_TOKEN: z.string().optional(),
+  /** Plafond global de codes envoyés par heure (tous numéros confondus) : coupe-circuit contre la fraude aux SMS. */
+  OTP_MAX_PER_HOUR_GLOBAL: z.coerce.number().int().positive().default(300),
+  /** Plafond d'envois par heure vers un même préfixe pays (ex. +229). */
+  OTP_MAX_PER_HOUR_PER_PREFIX: z.coerce.number().int().positive().default(200),
+
+  /** Jeton d'accès à GET /metrics (Prometheus). Vide = route désactivée. */
+  METRICS_TOKEN: z.string().min(16).optional(),
 
   // --- Paiements ----------------------------------------------------------
   /** Prestataires actifs : fedapay, kkiapay, mock (jamais mock en production). */

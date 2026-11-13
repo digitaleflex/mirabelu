@@ -8,6 +8,7 @@ import { StorageError } from '@mirabelu/storage';
 import { type AppDeps, type Ctx } from './context.js';
 import { HttpError, forbidden, unauthorized } from './errors.js';
 import { TokenService } from './tokens.js';
+import { Metrics } from './metrics.js';
 import { adminRoutes } from './routes/admin.js';
 import { authRoutes } from './routes/auth.js';
 import { billingRoutes } from './routes/billing.js';
@@ -24,7 +25,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       // Jamais de jetons, cookies ni corps de requête dans les journaux.
       redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
     },
-    trustProxy: true,
+    // Nombre de sauts de confiance explicite : `true` laisserait un client forger X-Forwarded-For.
+    trustProxy: (_address: string, hop: number) => hop < env.TRUST_PROXY_HOPS,
     bodyLimit: 1_000_000,
   });
 
@@ -42,6 +44,25 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     reply.header('Cache-Control', 'no-store');
   });
 
+  const metrics = new Metrics();
+  app.addHook('onResponse', async (req, reply) => {
+    // Route paramétrée (jamais l'URL réelle) pour garder une cardinalité faible.
+    metrics.observe(req.method, req.routeOptions?.url ?? 'inconnue', reply.statusCode, reply.elapsedTime);
+  });
+  if (env.METRICS_TOKEN) {
+    app.get('/metrics', { config: { rateLimit: false } }, async (req, reply) => {
+      const given = req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : '';
+      if (!Metrics.tokenMatches(given, env.METRICS_TOKEN as string)) throw unauthorized();
+      const [users, subs, queued] = await Promise.all([
+        deps.db.user.count(),
+        deps.db.subscription.count({ where: { status: 'ACTIVE', startsAt: { lte: new Date() }, endsAt: { gt: new Date() } } }),
+        deps.db.importJob.count({ where: { status: { in: ['QUEUED', 'RUNNING'] } } }),
+      ]);
+      reply.header('Content-Type', 'text/plain; version=0.0.4');
+      return metrics.render({ mirabelu_users_total: users, mirabelu_active_subscriptions: subs, mirabelu_imports_pending: queued });
+    });
+  }
+
   const tokens = new TokenService(env.JWT_SECRET, env.ACCESS_TOKEN_TTL_SECONDS);
   const clock = deps.now ?? (() => new Date());
 
@@ -55,13 +76,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       if (!token) throw unauthorized();
       const claims = await tokens.verifyAccess(token);
       if (!claims) throw unauthorized('Session expirée', 'TOKEN_EXPIRED');
-      req.auth = { userId: claims.sub, role: claims.role };
+      // Rôle et suspension sont relus en base : une révocation ou une suspension prend effet immédiatement,
+      // sans attendre l'expiration du jeton (le rôle du jeton n'est jamais cru).
+      const u = await deps.db.user.findUnique({ where: { id: claims.sub }, select: { role: true, suspendedAt: true } });
+      if (!u) throw unauthorized('Session expirée', 'TOKEN_EXPIRED');
+      if (u.suspendedAt) throw forbidden('Ce compte est suspendu. Contactez le support.', 'ACCOUNT_SUSPENDED');
+      req.auth = { userId: claims.sub, role: u.role };
     },
     async requireAdmin(req, reply) {
       await ctx.requireAuth(req, reply);
-      // Le rôle est relu en base : une révocation d'administrateur prend effet immédiatement.
-      const u = await deps.db.user.findUnique({ where: { id: req.auth?.userId ?? '' }, select: { role: true } });
-      if (u?.role !== 'ADMIN') throw forbidden('Réservé aux administrateurs');
+      if (req.auth?.role !== 'ADMIN') throw forbidden('Réservé aux administrateurs');
     },
   };
 

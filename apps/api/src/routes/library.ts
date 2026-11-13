@@ -52,7 +52,12 @@ export const libraryRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       update: { positionSec: body.positionSec, ...(body.completed !== undefined ? { completed: body.completed } : {}) },
     });
     if (body.listenedSec && body.listenedSec > 0) {
-      await db.listenEvent.create({ data: { userId, bookId, seconds: body.listenedSec } });
+      // Valeur déclarée par le client : on borne le total par 24 h glissantes à 24 h d'écoute par utilisateur,
+      // pour que des statistiques (et d'éventuels calculs de droits) ne soient pas gonflées à volonté.
+      const since = new Date(ctx.clock().getTime() - 86_400_000);
+      const used = await db.listenEvent.aggregate({ where: { userId, createdAt: { gte: since } }, _sum: { seconds: true } });
+      const credited = Math.min(body.listenedSec, Math.max(0, 86_400 - (used._sum.seconds ?? 0)));
+      if (credited > 0) await db.listenEvent.create({ data: { userId, bookId, seconds: credited } });
     }
     return { ok: true };
   });

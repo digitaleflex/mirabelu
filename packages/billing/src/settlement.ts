@@ -58,7 +58,7 @@ export async function startCheckout(db: Db, providers: ProviderRegistry, input: 
 
 export interface SettleOutcome {
   paymentId: string;
-  status: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELED';
+  status: 'PENDING' | 'PAID' | 'FAILED' | 'CANCELED' | 'REFUNDED';
   /** true si CET appel a activé l'abonnement. */
   activated: boolean;
 }
@@ -78,7 +78,7 @@ export async function settlePayment(
   if (!payment) throw new BillingError('Paiement introuvable', 'NOT_FOUND');
   const adapter = providers[payment.provider as ProviderCode];
   if (!adapter) throw new BillingError(`Moyen de paiement indisponible : ${payment.provider}`, 'PROVIDER_DISABLED');
-  if (payment.status === 'PAID') return { paymentId, status: 'PAID', activated: false };
+  if (payment.status === 'PAID' || payment.status === 'REFUNDED') return { paymentId, status: payment.status, activated: false };
   if (payment.providerRef && payment.providerRef !== providerRef) {
     throw new BillingError('Référence de transaction non concordante', 'CONFLICT');
   }
@@ -107,7 +107,10 @@ export async function applyResult(db: Db, paymentId: string, result: VerifyResul
       where: { id: paymentId, status: { in: ['PENDING', 'FAILED', 'CANCELED'] } },
       data: { status: 'PAID', paidAt: now, providerRef: result.providerRef, failureReason: null },
     });
-    if (claimed.count === 0) return { paymentId, status: 'PAID' as const, activated: false };
+    if (claimed.count === 0) {
+      const current = await tx.payment.findUniqueOrThrow({ where: { id: paymentId }, select: { status: true } });
+      return { paymentId, status: current.status, activated: false };
+    }
 
     const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
     const plan = getPlan(payment.plan);
@@ -158,4 +161,36 @@ export async function grantSubscription(
       note: input.note,
     },
   });
+}
+
+/**
+ * Marque un paiement comme remboursé et annule l'abonnement qu'il avait créé.
+ * Le remboursement d'argent lui-même se fait chez le prestataire (FedaPay / KKiaPay) ; cette fonction
+ * met la plateforme en cohérence. Les abonnements chaînés après celui-ci gardent leurs dates.
+ */
+export async function refundPayment(db: Db, paymentId: string, reason: string): Promise<{ canceledSubscriptions: number }> {
+  return db.$transaction(async (tx) => {
+    const claimed = await tx.payment.updateMany({
+      where: { id: paymentId, status: 'PAID' },
+      data: { status: 'REFUNDED', failureReason: reason },
+    });
+    if (claimed.count === 0) {
+      const exists = await tx.payment.findUnique({ where: { id: paymentId }, select: { id: true } });
+      throw new BillingError(exists ? 'Seul un paiement réglé peut être remboursé' : 'Paiement introuvable', exists ? 'CONFLICT' : 'NOT_FOUND');
+    }
+    const canceled = await tx.subscription.updateMany({
+      where: { paymentId, status: 'ACTIVE' },
+      data: { status: 'CANCELED', note: `Remboursé : ${reason}` },
+    });
+    return { canceledSubscriptions: canceled.count };
+  });
+}
+
+/** Annule un abonnement actif (fin immédiate). */
+export async function cancelSubscription(db: Db, subscriptionId: string, reason: string, now: Date = new Date()): Promise<void> {
+  const r = await db.subscription.updateMany({
+    where: { id: subscriptionId, status: 'ACTIVE' },
+    data: { status: 'CANCELED', endsAt: now, note: `Annulé : ${reason}` },
+  });
+  if (r.count === 0) throw new BillingError('Abonnement actif introuvable', 'NOT_FOUND');
 }

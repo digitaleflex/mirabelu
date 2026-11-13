@@ -3,7 +3,7 @@
 `src/stack.ts` démarre une base jetable, un faux AURA, un faux fournisseur OTP, l'API et le worker sur :4000. `src/flows.ts` pilote ensuite le site (lancé sur :3000) avec Playwright et vérifie 22 parcours : accueil, connexion OTP, abonnement, lecture, bibliothèque, favoris, PWA, espace admin, droits.
 
 ```bash
-pnpm --filter @mirabelu/web build
+CSP_MEDIA_EXTRA='http://127.0.0.1:*' pnpm --filter @mirabelu/web build   # le faux AURA des tests est en http
 (cd e2e && pnpm exec tsx src/stack.ts) &
 (cd apps/web && API_URL=http://127.0.0.1:4000 pnpm exec next start -p 3000) &
 cd e2e && pnpm exec tsx src/flows.ts

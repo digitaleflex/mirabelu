@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { loadWorkerEnv } from '@mirabelu/config';
 import { createDb, createQueue } from '@mirabelu/database';
 import { AuraStorage } from '@mirabelu/storage';
@@ -29,6 +29,13 @@ const deps: PipelineDeps = {
     ...DEFAULT_LIMITS,
   },
 };
+
+// Battement de cœur lu par le healthcheck Docker : le fichier est rafraîchi tant que la boucle tourne.
+const HEARTBEAT = `${env.WORK_DIR}/heartbeat`;
+const beat = () => void writeFile(HEARTBEAT, String(Date.now())).catch(() => undefined);
+beat();
+const heartbeat = setInterval(beat, 15_000);
+heartbeat.unref();
 
 await queue.workImport(env.WORKER_CONCURRENCY, (job) => processImport(deps, job.importJobId));
 log('worker démarré', { concurrency: env.WORKER_CONCURRENCY });

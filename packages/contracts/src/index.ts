@@ -82,7 +82,7 @@ export type CheckoutResponse = z.infer<typeof checkoutResponse>;
 
 export const confirmPaymentBody = z.object({ transactionId: z.string().min(1).max(128) });
 
-export const paymentStatus = z.enum(['PENDING', 'PAID', 'FAILED', 'CANCELED']);
+export const paymentStatus = z.enum(['PENDING', 'PAID', 'FAILED', 'CANCELED', 'REFUNDED']);
 export const paymentDto = z.object({
   id: z.string(),
   plan: planCode,
@@ -191,6 +191,9 @@ export const historyItemDto = z.object({
 // ---------------------------------------------------------------------------
 // Administration
 // ---------------------------------------------------------------------------
+/** URL https uniquement : jamais de schéma `javascript:` ou `data:` dans une couverture. */
+const httpsUrl = z.string().url().max(2000).refine((u) => u.startsWith('https://'), 'URL https requise');
+
 export const adminBookBody = z.object({
   title: z.string().trim().min(1).max(200),
   slug: slug.optional(),
@@ -198,7 +201,7 @@ export const adminBookBody = z.object({
   categorySlug: slug,
   description: z.string().max(5000).default(''),
   language: z.string().min(2).max(8).default('fr'),
-  coverUrl: z.string().url().nullable().optional(),
+  coverUrl: httpsUrl.nullable().optional(),
   isPriority: z.boolean().default(false),
 });
 export const adminBookPatch = adminBookBody.partial();
@@ -246,6 +249,10 @@ export const importDto = z.object({
   finishedAt: z.string().nullable(),
 });
 export type ImportDto = z.infer<typeof importDto>;
+
+export const suspendUserBody = z.object({ reason: z.string().trim().min(3).max(200) });
+export const refundPaymentBody = z.object({ reason: z.string().trim().min(3).max(200) });
+export const cancelSubscriptionBody = z.object({ reason: z.string().trim().min(3).max(200) });
 
 export const grantSubscriptionBody = z.object({
   plan: planCode,

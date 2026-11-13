@@ -3,9 +3,9 @@ import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 import { requestOtpBody, verifyOtpBody, type UserDto } from '@mirabelu/contracts';
 import { activeSubscription } from '@mirabelu/billing';
 import { parse, type Ctx } from '../context.js';
-import { badRequest, tooMany, unauthorized } from '../errors.js';
+import { badRequest, forbidden, tooMany, unauthorized } from '../errors.js';
 import { hashToken } from '../tokens.js';
-import { normalizePhone } from '../phone.js';
+import { CALLING_CODES, countryOfPhone, normalizePhone } from '../phone.js';
 
 const OTP_TTL_MS = 10 * 60_000;
 const OTP_MAX_ATTEMPTS = 5;
@@ -64,6 +64,19 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     }
     if (recent.length >= OTP_MAX_PER_HOUR) throw tooMany('Trop de demandes, réessayez dans une heure.');
 
+    // Coupe-circuit contre la fraude aux SMS : plafonds globaux, indépendants de l'IP et du numéro.
+    const hourAgo = new Date(now.getTime() - 3_600_000);
+    const country = countryOfPhone(phone);
+    const prefix = country ? `+${CALLING_CODES[country]}` : null;
+    const [globalCount, prefixCount] = await Promise.all([
+      db.otpCode.count({ where: { createdAt: { gt: hourAgo } } }),
+      prefix ? db.otpCode.count({ where: { createdAt: { gt: hourAgo }, phone: { startsWith: prefix } } }) : Promise.resolve(0),
+    ]);
+    if (globalCount >= env.OTP_MAX_PER_HOUR_GLOBAL || prefixCount >= env.OTP_MAX_PER_HOUR_PER_PREFIX) {
+      req.log.warn({ globalCount, prefixCount }, 'plafond d’envoi OTP atteint');
+      throw tooMany('Service momentanément saturé, réessayez dans quelques minutes.');
+    }
+
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     await db.otpCode.create({
       data: { phone, codeHash: tokens.otpHash(phone, code), expiresAt: new Date(now.getTime() + OTP_TTL_MS) },
@@ -103,6 +116,7 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       create: { phone, role: isAdmin ? 'ADMIN' : 'SUBSCRIBER', lastLoginAt: now },
       update: { lastLoginAt: now, ...(isAdmin ? { role: 'ADMIN' as const } : {}) },
     });
+    if (user.suspendedAt) throw forbidden('Ce compte est suspendu. Contactez le support.', 'ACCOUNT_SUSPENDED');
     const session = await issueSession(user.id, user.role, req.headers['user-agent'], reply);
     return { ...session, user: await toUserDto(user.id) };
   });
@@ -123,6 +137,11 @@ export const authRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
       }
       reply.clearCookie(REFRESH_COOKIE, { path: env.REFRESH_COOKIE_PATH });
       throw unauthorized('Session expirée', 'SESSION_EXPIRED');
+    }
+    if (row.user.suspendedAt) {
+      await db.refreshToken.updateMany({ where: { userId: row.userId, revokedAt: null }, data: { revokedAt: now } });
+      reply.clearCookie(REFRESH_COOKIE, { path: env.REFRESH_COOKIE_PATH });
+      throw forbidden('Ce compte est suspendu. Contactez le support.', 'ACCOUNT_SUSPENDED');
     }
     const revoked = await db.refreshToken.updateMany({ where: { id: row.id, revokedAt: null }, data: { revokedAt: now } });
     if (revoked.count === 0) throw unauthorized('Session expirée', 'SESSION_EXPIRED');

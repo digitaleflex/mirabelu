@@ -66,4 +66,6 @@ COPY --from=build /app/apps/web/public ./apps/web/public
 USER node
 WORKDIR /app/apps/web
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "server.js"]

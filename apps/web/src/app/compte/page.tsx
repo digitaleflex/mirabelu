@@ -9,7 +9,7 @@ import { api, fmtXof, logout, updateUser } from '@/lib/api';
 import { useSession } from '@/lib/session';
 import { useApi } from '@/lib/use-api';
 
-const STATUS: Record<PaymentDto['status'], string> = { PENDING: 'En attente', PAID: 'Payé', FAILED: 'Refusé', CANCELED: 'Annulé' };
+const STATUS: Record<PaymentDto['status'], string> = { PENDING: 'En attente', PAID: 'Payé', FAILED: 'Refusé', CANCELED: 'Annulé', REFUNDED: 'Remboursé' };
 
 function Account() {
   const router = useRouter();

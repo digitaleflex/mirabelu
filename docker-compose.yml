@@ -37,6 +37,11 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       REFRESH_COOKIE_PATH: /api/auth
       ADMIN_PHONES: ${ADMIN_PHONES:-}
+      # Le site web proxifie /api : 1 saut de confiance. Ajouter 1 par répartiteur de charge devant le site.
+      TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+      OTP_MAX_PER_HOUR_GLOBAL: ${OTP_MAX_PER_HOUR_GLOBAL:-300}
+      OTP_MAX_PER_HOUR_PER_PREFIX: ${OTP_MAX_PER_HOUR_PER_PREFIX:-200}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
       DEFAULT_PHONE_COUNTRY: ${DEFAULT_PHONE_COUNTRY:-BJ}
       OTP_DELIVERY: ${OTP_DELIVERY:-console}
       OTP_WEBHOOK_URL: ${OTP_WEBHOOK_URL:-}
@@ -59,6 +64,29 @@ services:
     build: { context: ., dockerfile: infrastructure/docker/Dockerfile, target: worker }
     environment: *api-env
     volumes: [imports:/data/imports]
+    healthcheck:
+      # Le worker rafraîchit /tmp/mirabelu-worker/heartbeat toutes les 15 s.
+      test: ["CMD", "node", "-e", "const s=require('fs').statSync('/tmp/mirabelu-worker/heartbeat');process.exit(Date.now()-s.mtimeMs<90000?0:1)"]
+      interval: 30s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  backup:
+    image: postgres:16-alpine
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    environment:
+      PGHOST: db
+      PGUSER: mirabelu
+      PGPASSWORD: ${POSTGRES_PASSWORD:-mirabelu}
+      PGDATABASE: mirabelu
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./infrastructure/backup/backup.sh:/backup.sh:ro
+      - backups:/backups
     depends_on:
       db: { condition: service_healthy }
       migrate: { condition: service_completed_successfully }
@@ -72,5 +100,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  backups:
   dbdata:
   imports:

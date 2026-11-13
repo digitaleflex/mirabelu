@@ -3,6 +3,7 @@ import { createProviders } from '@mirabelu/billing';
 import { loadApiEnv } from '@mirabelu/config';
 import { createDb, createQueue } from '@mirabelu/database';
 import { buildApp } from './app.js';
+import { syncAdmins } from './admins.js';
 import { ConsoleOtpSender, WebhookOtpSender, type OtpSender } from './otp.js';
 
 const env = loadApiEnv(process.env);
@@ -26,6 +27,9 @@ const app = await buildApp({
       : (new ConsoleOtpSender((m) => console.warn(m)) as OtpSender),
   queue,
 });
+
+const demoted = await syncAdmins(db, env);
+if (demoted > 0) app.log.warn({ demoted }, 'administrateurs retirés de ADMIN_PHONES rétrogradés');
 
 const shutdown = async (signal: string): Promise<void> => {
   app.log.info({ signal }, 'arrêt');
