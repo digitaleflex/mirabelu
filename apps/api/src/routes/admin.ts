@@ -2,9 +2,9 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import {
   adminBookBody, adminBookPatch, adminCategoryBody, essentialsBody, grantSubscriptionBody, importBatchBody,
-  importCreateBody, pageQuery, rightsBody, type ImportDto, type StatsDto,
+  importCreateBody, pageQuery, refundPaymentBody, rightsBody, suspendUserBody, cancelSubscriptionBody, type ImportDto, type StatsDto,
 } from '@mirabelu/contracts';
-import { grantSubscription } from '@mirabelu/billing';
+import { BillingError, cancelSubscription, grantSubscription, refundPayment } from '@mirabelu/billing';
 import { authOf, parse, type Ctx } from '../context.js';
 import { badRequest, conflict, notFound } from '../errors.js';
 import { bookInclude, slugify, toBookSummary } from '../mappers.js';
@@ -253,7 +253,7 @@ export const adminRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     return {
       items: rows.map((u) => ({
         id: u.id, phone: u.phone, name: u.name, role: u.role, createdAt: u.createdAt.toISOString(),
-        lastLoginAt: u.lastLoginAt?.toISOString() ?? null, subscriptionEndsAt: u.subscriptions[0]?.endsAt.toISOString() ?? null,
+        lastLoginAt: u.lastLoginAt?.toISOString() ?? null, suspendedAt: u.suspendedAt?.toISOString() ?? null, subscriptionEndsAt: u.subscriptions[0]?.endsAt.toISOString() ?? null,
       })),
       page: q.page, pageSize: q.pageSize, total,
     };
@@ -264,6 +264,67 @@ export const adminRoutes = (ctx: Ctx): FastifyPluginAsync => async (app) => {
     if (!(await db.user.findUnique({ where: { id: req.params.id }, select: { id: true } }))) throw notFound('Utilisateur introuvable');
     const sub = await grantSubscription(db, { userId: req.params.id, plan: body.plan, note: `Octroi manuel par ${authOf(req).userId} : ${body.reason}` }, clock());
     return reply.status(201).send({ id: sub.id, endsAt: sub.endsAt.toISOString() });
+  });
+
+  app.get<{ Params: { id: string } }>('/admin/users/:id', async (req) => {
+    const u = await db.user.findUnique({
+      where: { id: req.params.id },
+      include: {
+        payments: { orderBy: { createdAt: 'desc' }, take: 50 },
+        subscriptions: { orderBy: { createdAt: 'desc' }, take: 50 },
+      },
+    });
+    if (!u) throw notFound('Utilisateur introuvable');
+    return {
+      id: u.id, phone: u.phone, name: u.name, role: u.role, suspendedAt: u.suspendedAt?.toISOString() ?? null, suspensionReason: u.suspensionReason,
+      payments: u.payments.map((p) => ({ id: p.id, plan: p.plan, provider: p.provider, amountXof: p.amountXof, status: p.status, createdAt: p.createdAt.toISOString(), paidAt: p.paidAt?.toISOString() ?? null })),
+      subscriptions: u.subscriptions.map((s) => ({ id: s.id, plan: s.plan, status: s.status, startsAt: s.startsAt.toISOString(), endsAt: s.endsAt.toISOString(), note: s.note })),
+    };
+  });
+
+  /** Suspend un compte : accès coupé immédiatement (jetons refusés) et sessions révoquées. */
+  app.post<{ Params: { id: string } }>('/admin/users/:id/suspend', async (req) => {
+    const body = parse(suspendUserBody, req.body);
+    if (req.params.id === authOf(req).userId) throw badRequest('Vous ne pouvez pas suspendre votre propre compte.', 'CANNOT_SUSPEND_SELF');
+    const target = await db.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true } });
+    if (!target) throw notFound('Utilisateur introuvable');
+    if (target.role === 'ADMIN') throw badRequest('Un administrateur ne peut pas être suspendu : retirez-le d’ADMIN_PHONES.', 'CANNOT_SUSPEND_ADMIN');
+    const now = clock();
+    await db.$transaction([
+      db.user.update({ where: { id: target.id }, data: { suspendedAt: now, suspensionReason: `${body.reason} (par ${authOf(req).userId})` } }),
+      db.refreshToken.updateMany({ where: { userId: target.id, revokedAt: null }, data: { revokedAt: now } }),
+    ]);
+    return { ok: true };
+  });
+
+  app.post<{ Params: { id: string } }>('/admin/users/:id/unsuspend', async (req) => {
+    const r = await db.user.updateMany({ where: { id: req.params.id, suspendedAt: { not: null } }, data: { suspendedAt: null, suspensionReason: null } });
+    if (r.count === 0) throw notFound('Utilisateur suspendu introuvable');
+    return { ok: true };
+  });
+
+  /** Met la plateforme en cohérence après un remboursement fait chez le prestataire. */
+  app.post<{ Params: { id: string } }>('/admin/payments/:id/refund', async (req) => {
+    const body = parse(refundPaymentBody, req.body);
+    try {
+      const out = await refundPayment(db, req.params.id, `${body.reason} (par ${authOf(req).userId})`);
+      return { ok: true, ...out };
+    } catch (e) {
+      if (e instanceof BillingError && e.code === 'NOT_FOUND') throw notFound('Paiement introuvable');
+      if (e instanceof BillingError) throw conflict(e.message, 'NOT_REFUNDABLE');
+      throw e;
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/admin/subscriptions/:id/cancel', async (req) => {
+    const body = parse(cancelSubscriptionBody, req.body);
+    try {
+      await cancelSubscription(db, req.params.id, `${body.reason} (par ${authOf(req).userId})`, clock());
+    } catch (e) {
+      if (e instanceof BillingError) throw notFound('Abonnement actif introuvable');
+      throw e;
+    }
+    return { ok: true };
   });
 
   // --- Statistiques -----------------------------------------------------------------------

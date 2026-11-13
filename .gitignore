@@ -11,3 +11,4 @@ packages/database/src/generated/
 apps/web/next-env.d.ts
 .DS_Store
 tmp/
+*.tsbuildinfo
