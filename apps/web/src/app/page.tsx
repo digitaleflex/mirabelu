@@ -11,11 +11,13 @@ import { useApi } from '@/lib/use-api';
 
 interface Home { featured: BookSummaryDto[]; latest: BookSummaryDto[] }
 interface History { items: { book: BookSummaryDto; positionSec: number; completed: boolean }[] }
+interface Category { id: string; slug: string; name: string }
 
 export default function HomePage() {
   const { user, isSubscriber } = useSession();
   const home = useApi<Home>('/catalog/home');
   const hist = useApi<History>(user ? '/library/history?pageSize=3' : null);
+  const cats = useApi<Category[]>('/catalog/categories');
 
   const resume = hist.data?.items.filter((i) => !i.completed && i.positionSec > 0) ?? [];
   const hero = home.data?.featured?.[0];
@@ -74,6 +76,17 @@ export default function HomePage() {
         <section className="stack">
           <h2>Derniers ajouts</h2>
           {home.data.latest.length > 0 ? <BookTiles books={home.data.latest} /> : <EmptyState title="Le catalogue arrive bientôt" icon="📚">Revenez vite, de nouveaux livres sont en préparation.</EmptyState>}
+        </section>
+      )}
+
+      {cats.data && cats.data.length > 0 && (
+        <section className="stack">
+          <h2>Parcourir les catégories</h2>
+          <div className="chips">
+            {cats.data.map((c) => (
+              <Link key={c.id} className="chip" href={`/explorer?categorie=${encodeURIComponent(c.slug)}`}>{c.name}</Link>
+            ))}
+          </div>
         </section>
       )}
     </div>
