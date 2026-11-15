@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { ImportDto } from '@mirabelu/contracts';
 import { ErrorBox, Loading } from '@/components/states';
+import { Card } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
 
@@ -48,6 +49,7 @@ export default function AdminImports() {
     <div className="page wide">
       <div className="page-head"><h1>Imports</h1><p className="muted">Chaque fichier est converti en AAC mono puis envoyé vers le stockage. Rien n’est publié automatiquement.</p></div>
 
+      <Card>
       <form className="form" style={{ maxWidth: 640 }} onSubmit={(e) => void submit(e)}>
         <div className="field">
           <label htmlFor="paths">Fichiers à importer (un chemin par ligne, relatif au dossier d’import)</label>
@@ -59,6 +61,7 @@ export default function AdminImports() {
         {msg && <div className={`notice ${msg.kind}`} role={msg.kind === 'error' ? 'alert' : 'status'}>{msg.text}</div>}
         <div><button className="btn primary" disabled={busy || !paths.trim()}>{busy ? 'Envoi…' : 'Lancer l’import'}</button></div>
       </form>
+      </Card>
 
       {list.loading && !list.data && <Loading />}
       {list.error && <ErrorBox error={list.error} onRetry={list.reload} />}

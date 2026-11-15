@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { CheckoutResponse, PaymentDto, PlanDto } from '@mirabelu/contracts';
 import { RequireLogin } from '@/components/guards';
 import { ErrorBox, Loading } from '@/components/states';
+import { Card } from '@/components/ui';
 import { api, ApiError, fmtXof, refreshSession } from '@/lib/api';
 import { payWithKkiapay } from '@/lib/kkiapay';
 import { useSession } from '@/lib/session';
@@ -107,10 +108,17 @@ function Subscribe() {
       </fieldset>
 
       {error && <div className="notice error" role="alert">{error}</div>}
+      <Card>
+        <div className="cluster" style={{ justifyContent: 'space-between' }}>
+          <span className="muted">Total</span>
+          <strong style={{ fontFamily: 'var(--serif)', fontSize: '1.4rem' }}>{fmtXof(plans.data?.find((p) => p.code === plan)?.priceXof ?? 0)}</strong>
+        </div>
+      </Card>
       <button className="btn primary block" disabled={busy || !chosen || !plans.data} onClick={() => void pay()}>
         {busy ? 'Paiement en cours…' : `Payer ${fmtXof(plans.data?.find((p) => p.code === plan)?.priceXof ?? 0)}`}
       </button>
       <p className="muted small">Paiement sécurisé par votre prestataire Mobile Money. Mirabelu ne voit jamais votre code secret.</p>
+      <p className="muted small"><a href="/conditions">Conditions</a> · <a href="/confidentialite">Confidentialité</a> · <a href="/mentions-legales">Mentions légales</a></p>
     </div>
   );
 }

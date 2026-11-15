@@ -20,7 +20,7 @@ export function Cover({ title, url, small = false }: { title: string; url?: stri
     return (
       <div className={`cover${small ? ' sm' : ''}`} style={{ background: c.bg }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt="" loading="lazy" />
+        <img src={url} alt={`Couverture : ${title}`} loading="lazy" />
       </div>
     );
   }

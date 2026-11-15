@@ -1,16 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { BookSummaryDto } from '@mirabelu/contracts';
 import { BookRows } from '@/components/book-list';
 import { RequireLogin } from '@/components/guards';
 import { Empty, ErrorBox, Loading } from '@/components/states';
+import { EmptyState, SegmentedControl, Skeleton } from '@/components/ui';
 import { useApi } from '@/lib/use-api';
 
 interface History { items: { book: BookSummaryDto; positionSec: number; completed: boolean }[] }
 
 function Library() {
-  const [tab, setTab] = useState<'cours' | 'favoris' | 'termines'>('cours');
+  const params = useSearchParams();
+  const [tab, setTab] = useState<'cours' | 'favoris' | 'termines' | 'historique'>('cours');
+  useEffect(() => {
+    const t = params.get('tab');
+    if (t === 'favoris' || t === 'termines' || t === 'historique' || t === 'cours') setTab(t);
+  }, [params]);
   const hist = useApi<History>('/library/history?pageSize=50');
   const favs = useApi<BookSummaryDto[]>('/library/favorites');
 
@@ -20,20 +27,19 @@ function Library() {
   return (
     <div className="page">
       <div className="page-head"><h1>Ma bibliothèque</h1></div>
-      <div className="tabs" role="tablist">
-        {([['cours', 'En cours'], ['favoris', 'Favoris'], ['termines', 'Terminés']] as const).map(([k, label]) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>
-        ))}
-      </div>
-      {(hist.loading || favs.loading) && <Loading />}
+      <SegmentedControl options={[{ value: 'cours', label: 'En cours' }, { value: 'historique', label: 'Historique' }, { value: 'favoris', label: 'Favoris' }, { value: 'termines', label: 'Terminés' }]} value={tab} onChange={setTab} />
+      {(hist.loading || favs.loading) && (
+        <ul className="rows">{Array.from({ length: 4 }).map((_, i) => <li key={i}><div className="row"><Skeleton style={{ width: 64, height: 64, borderRadius: 12 }} /><div style={{ display: 'grid', gap: 8, flex: 1 }}><Skeleton style={{ height: 16, width: '70%' }} /><Skeleton style={{ height: 12, width: '40%' }} /></div></div></li>)}</ul>
+      )}
       {hist.error && <ErrorBox error={hist.error} onRetry={hist.reload} />}
-      {tab === 'cours' && !hist.loading && (inProgress.length ? <BookRows books={inProgress} progress /> : <Empty title="Rien en cours" action={{ href: '/explorer', label: 'Choisir un livre' }}>Les livres que vous commencez apparaissent ici.</Empty>)}
-      {tab === 'favoris' && !favs.loading && (favs.data?.length ? <BookRows books={favs.data.map((book) => ({ book }))} /> : <Empty title="Aucun favori" action={{ href: '/explorer', label: 'Parcourir le catalogue' }}>Touchez « Ajouter aux favoris » sur la page d’un livre.</Empty>)}
-      {tab === 'termines' && !hist.loading && (done.length ? <BookRows books={done} progress /> : <Empty title="Aucun livre terminé">Vos livres terminés seront rangés ici.</Empty>)}
+      {tab === 'cours' && !hist.loading && (inProgress.length ? <BookRows books={inProgress} progress /> : <EmptyState title="Rien en cours" action={{ href: '/explorer', label: 'Choisir un livre' }} icon="🎧">Les livres que vous commencez apparaissent ici.</EmptyState>)}
+      {tab === 'historique' && !hist.loading && (items.length ? <BookRows books={items} progress /> : <EmptyState title="Aucun historique" action={{ href: '/explorer', label: 'Parcourir' }} icon="🕒">Vos écoutes récentes apparaîtront ici.</EmptyState>)}
+      {tab === 'favoris' && !favs.loading && (favs.data?.length ? <BookRows books={favs.data.map((book) => ({ book }))} /> : <EmptyState title="Aucun favori" action={{ href: '/explorer', label: 'Parcourir le catalogue' }} icon="❤️">Touchez « Ajouter aux favoris » sur la page d’un livre.</EmptyState>)}
+      {tab === 'termines' && !hist.loading && (done.length ? <BookRows books={done} progress /> : <EmptyState title="Aucun livre terminé" icon="✅">Vos livres terminés seront rangés ici.</EmptyState>)}
     </div>
   );
 }
 
 export default function LibraryPage() {
-  return <RequireLogin next="/bibliotheque"><Library /></RequireLogin>;
+  return <RequireLogin next="/bibliotheque"><Suspense fallback={<div className="page"><p className="muted">Chargement…</p></div>}><Library /></Suspense></RequireLogin>;
 }

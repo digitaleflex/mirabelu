@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { Shell } from '@/components/shell';
+import { ToastProvider } from '@/components/toast';
 import { PlayerProvider } from '@/lib/player';
 import { SessionProvider } from '@/lib/session';
 import './globals.css';
@@ -27,7 +28,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <a href="#contenu" className="sr-only">Aller au contenu</a>
         <SessionProvider>
           <PlayerProvider>
-            <Shell>{children}</Shell>
+            <ToastProvider>
+              <Shell>{children}</Shell>
+            </ToastProvider>
           </PlayerProvider>
         </SessionProvider>
       </body>

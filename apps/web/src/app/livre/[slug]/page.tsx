@@ -7,6 +7,7 @@ import { Cover } from '@/components/cover';
 import { HeartIcon, PlayIcon } from '@/components/icons';
 import { Markdown } from '@/components/markdown';
 import { Empty, ErrorBox, Loading } from '@/components/states';
+import { useToast } from '@/components/toast';
 import { api, ApiError, fmtClock, fmtDuration } from '@/lib/api';
 import { usePlayer } from '@/lib/player';
 import { useSession } from '@/lib/session';
@@ -18,6 +19,7 @@ export default function BookPage({ params }: { params: Promise<{ slug: string }>
   const { slug } = use(params);
   const { user, isSubscriber } = useSession();
   const player = usePlayer();
+  const toast = useToast();
   const book = useApi<BookDetailDto>(`/catalog/books/${slug}`);
   const [tab, setTab] = useState<Tab>('chapitres');
   const [msg, setMsg] = useState<string | null>(null);
@@ -45,8 +47,10 @@ export default function BookPage({ params }: { params: Promise<{ slug: string }>
     book.setData({ ...b, isFavorite: !b.isFavorite });
     try {
       await api(`/library/favorites/${b.id}`, { method: b.isFavorite ? 'DELETE' : 'PUT' });
+      toast.push('success', b.isFavorite ? 'Retiré des favoris' : 'Ajouté aux favoris');
     } catch {
       book.setData(b);
+      toast.push('error', 'Action impossible');
     }
   }
 
@@ -55,10 +59,10 @@ export default function BookPage({ params }: { params: Promise<{ slug: string }>
 
   return (
     <div className="page">
-      <section className="hero-book">
-        <Cover title={b.title} url={b.coverUrl} />
+      <section className="hero-book hero-cover">
+        <div className="glow"><Cover title={b.title} url={b.coverUrl} /></div>
         <div className="stack">
-          <h1>{b.title}</h1>
+          <h1 className="display" style={{ fontSize: 'clamp(1.6rem, 6vw, 2.2rem)' }}>{b.title}</h1>
           <p className="muted">{b.author.name} · {b.category.name} · {fmtDuration(b.durationSec)}</p>
           <div className="cluster">
             {canListen ? (
@@ -115,6 +119,13 @@ export default function BookPage({ params }: { params: Promise<{ slug: string }>
         {tab !== 'chapitres' && essentials.error && <ErrorBox error={essentials.error} onRetry={essentials.reload} />}
         {tab !== 'chapitres' && essentials.data && <Markdown source={tab === 'comprendre' ? essentials.data.understandMd : essentials.data.applyMd} />}
       </section>
+      {canListen && (
+        <div className="sticky-action">
+          <button className="btn primary block" onClick={() => void listen()}>
+            <PlayIcon />{b.progressSec > 0 ? `Reprendre à ${fmtClock(b.progressSec)}` : 'Écouter'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

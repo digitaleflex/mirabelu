@@ -19,11 +19,13 @@ interface PlayerState {
   rate: number;
   sleepMinutes: number | null;
   expanded: boolean;
+  volume: number;
   play(track: Track): Promise<void>;
   toggle(): void;
   seek(sec: number): void;
   skip(delta: number): void;
   setRate(r: number): void;
+  setVolume(v: number): void;
   setSleep(minutes: number | null): void;
   setExpanded(v: boolean): void;
   close(): void;
@@ -51,6 +53,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [rate, setRateState] = useState(1);
   const [sleepMinutes, setSleepMinutes] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [volume, setVolumeState] = useState(1);
 
   const urlExpiresAt = useRef(0);
   const listenedSinceSave = useRef(0);
@@ -226,6 +229,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
   const skip = useCallback((d: number) => { if (audioRef.current) seek(audioRef.current.currentTime + d); }, [seek]);
   const setRate = useCallback((r: number) => { setRateState(r); if (audioRef.current) audioRef.current.playbackRate = r; }, []);
+  const setVolume = useCallback((v: number) => { setVolumeState(v); if (audioRef.current) audioRef.current.volume = v; }, []);
   const setSleep = useCallback((m: number | null) => { setSleepMinutes(m); sleepAt.current = m ? Date.now() + m * 60_000 : null; }, []);
   const close = useCallback(() => {
     const a = audioRef.current;
@@ -251,9 +255,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [track, toggle, skip, seek]);
 
   const value = useMemo<PlayerState>(() => ({
-    track, playing, loading, error, position, duration, rate, sleepMinutes, expanded,
-    play, toggle, seek, skip, setRate, setSleep, setExpanded, close,
-  }), [track, playing, loading, error, position, duration, rate, sleepMinutes, expanded, play, toggle, seek, skip, setRate, setSleep, close]);
+    track, playing, loading, error, position, duration, rate, sleepMinutes, expanded, volume,
+    play, toggle, seek, skip, setRate, setVolume, setSleep, setExpanded, close,
+  }), [track, playing, loading, error, position, duration, rate, sleepMinutes, expanded, volume, play, toggle, seek, skip, setRate, setVolume, setSleep, close]);
 
   void bookId;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
