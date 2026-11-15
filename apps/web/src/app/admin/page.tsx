@@ -16,11 +16,11 @@ export default function AdminHome() {
       {s && (
         <>
           <div className="stats">
-            <div className="stat"><strong>{s.activeSubscribers}</strong><span className="muted">abonnés actifs</span></div>
-            <div className="stat"><strong>{fmtXof(s.revenueXofLast30Days)}</strong><span className="muted">encaissés</span></div>
-            <div className="stat"><strong>{s.newSubscribersLast30Days}</strong><span className="muted">nouveaux abonnés</span></div>
-            <div className="stat"><strong>{s.listenedHoursLast30Days} h</strong><span className="muted">d’écoute</span></div>
-            <div className="stat"><strong>{s.publishedBooks}</strong><span className="muted">livres publiés</span></div>
+            <div className="stat card"><strong>{s.activeSubscribers}</strong><span className="muted">abonnés actifs</span></div>
+            <div className="stat card"><strong>{fmtXof(s.revenueXofLast30Days)}</strong><span className="muted">encaissés</span></div>
+            <div className="stat card"><strong>{s.newSubscribersLast30Days}</strong><span className="muted">nouveaux abonnés</span></div>
+            <div className="stat card"><strong>{s.listenedHoursLast30Days} h</strong><span className="muted">d’écoute</span></div>
+            <div className="stat card"><strong>{s.publishedBooks}</strong><span className="muted">livres publiés</span></div>
           </div>
           <section className="stack">
             <h2>Les plus écoutés</h2>

@@ -19,7 +19,7 @@ function inline(text: string): ReactNode[] {
 export function Markdown({ source }: { source: string }) {
   const blocks = source.trim().split(/\n{2,}/);
   return (
-    <div className="prose">
+    <div className="prose lettrine">
       {blocks.map((block, bi) => {
         const lines = block.split('\n');
         const first = lines[0] ?? '';

@@ -64,7 +64,9 @@ export function PlayerUI() {
       )}
 
       {p.expanded && (
-        <div className="sheet" role="dialog" aria-modal="true" aria-label={`Lecture de ${track.book.title}`}>
+        <div className="sheet" role="dialog" aria-modal="true" aria-label={`Lecture de ${track.book.title}`}
+          onTouchStart={(e) => { const t = e.touches[0]; if (t) (window as any).__ty = t.clientY; }}
+          onTouchEnd={(e) => { const t = e.changedTouches[0]; if (!t) return; const dy = t.clientY - ((window as any).__ty ?? 0); if (dy > 80) p.setExpanded(false); }}>
           <header>
             <button className="icon-btn" onClick={() => p.setExpanded(false)} aria-label="Réduire le lecteur" style={{ color: 'inherit' }}><ChevronDownIcon /></button>
             <button className="link" onClick={p.close}>Arrêter</button>
@@ -80,6 +82,21 @@ export function PlayerUI() {
             {p.loading && <p role="status">Chargement…</p>}
             {p.error && <div className="notice error" role="alert">{p.error}</div>}
           </div>
+
+          {track.chapters && track.chapters.length > 0 && (
+            <details style={{ width: '100%', maxWidth: 480, margin: '0 auto' }}>
+              <summary style={{ cursor: 'pointer', padding: '8px 0', fontWeight: 600 }}>Chapitres</summary>
+              <ul className="chapters" style={{ maxHeight: 200, overflowY: 'auto' }}>
+                {track.chapters.map((c) => (
+                  <li key={c.position}>
+                    <button onClick={() => p.seek(c.startSec)} style={{ color: 'inherit' }}>
+                      <span>{c.title}</span><span className="small" style={{ opacity: 0.7 }}>{fmtClock(c.startSec)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
 
           <div>
             <div className="scrub">

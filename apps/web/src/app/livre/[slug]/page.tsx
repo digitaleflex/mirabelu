@@ -55,10 +55,10 @@ export default function BookPage({ params }: { params: Promise<{ slug: string }>
 
   return (
     <div className="page">
-      <section className="hero-book">
-        <Cover title={b.title} url={b.coverUrl} />
+      <section className="hero-book hero-cover">
+        <div className="glow"><Cover title={b.title} url={b.coverUrl} /></div>
         <div className="stack">
-          <h1>{b.title}</h1>
+          <h1 className="display" style={{ fontSize: 'clamp(1.6rem, 6vw, 2.2rem)' }}>{b.title}</h1>
           <p className="muted">{b.author.name} · {b.category.name} · {fmtDuration(b.durationSec)}</p>
           <div className="cluster">
             {canListen ? (
@@ -115,6 +115,13 @@ export default function BookPage({ params }: { params: Promise<{ slug: string }>
         {tab !== 'chapitres' && essentials.error && <ErrorBox error={essentials.error} onRetry={essentials.reload} />}
         {tab !== 'chapitres' && essentials.data && <Markdown source={tab === 'comprendre' ? essentials.data.understandMd : essentials.data.applyMd} />}
       </section>
+      {canListen && (
+        <div className="sticky-action">
+          <button className="btn primary block" onClick={() => void listen()}>
+            <PlayIcon />{b.progressSec > 0 ? `Reprendre à ${fmtClock(b.progressSec)}` : 'Écouter'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
