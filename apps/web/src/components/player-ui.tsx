@@ -120,6 +120,10 @@ export function PlayerUI() {
                 <button key={r} aria-pressed={p.rate === r} onClick={() => p.setRate(r)}>{r}×</button>
               ))}
             </div>
+            <div className="scrub" style={{ marginTop: 10 }}>
+              <label className="sr-only" htmlFor="volume">Volume</label>
+              <input id="volume" type="range" min={0} max={1} step={0.05} value={p.volume} onChange={(e) => p.setVolume(Number(e.target.value))} aria-label="Volume" />
+            </div>
             <div className="extras" role="group" aria-label="Minuterie de sommeil" style={{ marginTop: 10 }}>
               {SLEEPS.map((m) => (
                 <button key={m} aria-pressed={p.sleepMinutes === m} onClick={() => p.setSleep(p.sleepMinutes === m ? null : m)}>
