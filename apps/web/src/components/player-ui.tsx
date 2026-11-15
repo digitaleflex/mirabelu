@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePlayer } from '@/lib/player';
 import { fmtClock } from '@/lib/api';
 import { Back15Icon, ChevronDownIcon, Fwd30Icon, PauseIcon, PlayIcon } from './icons';
@@ -34,6 +34,11 @@ function Fruit({ progress }: { progress: number }) {
 export function PlayerUI() {
   const p = usePlayer();
   const { track } = p;
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (p.expanded) closeRef.current?.focus();
+  }, [p.expanded]);
 
   useEffect(() => {
     if (!p.expanded) return;
@@ -68,7 +73,7 @@ export function PlayerUI() {
           onTouchStart={(e) => { const t = e.touches[0]; if (t) (window as any).__ty = t.clientY; }}
           onTouchEnd={(e) => { const t = e.changedTouches[0]; if (!t) return; const dy = t.clientY - ((window as any).__ty ?? 0); if (dy > 80) p.setExpanded(false); }}>
           <header>
-            <button className="icon-btn" onClick={() => p.setExpanded(false)} aria-label="Réduire le lecteur" style={{ color: 'inherit' }}><ChevronDownIcon /></button>
+            <button ref={closeRef} className="icon-btn" onClick={() => p.setExpanded(false)} aria-label="Réduire le lecteur" style={{ color: 'inherit' }}><ChevronDownIcon /></button>
             <button className="link" onClick={p.close}>Arrêter</button>
           </header>
 
