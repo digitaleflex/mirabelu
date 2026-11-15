@@ -18,17 +18,17 @@ function Account() {
   const pays = useApi<PaymentDto[]>('/billing/payments');
   const [name, setName] = useState(user?.name ?? '');
   const [saved, setSaved] = useState(false);
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
   useEffect(() => {
     const stored = localStorage.getItem('mirabelu-theme');
-    const isDark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = stored ? stored === 'dark' : true;
     setDark(isDark);
-    document.documentElement.classList.toggle('dark', isDark);
+    document.documentElement.classList.toggle('light', !isDark);
   }, []);
   function toggleTheme() {
     const next = !dark;
     setDark(next);
-    document.documentElement.classList.toggle('dark', next);
+    document.documentElement.classList.toggle('light', !next);
     localStorage.setItem('mirabelu-theme', next ? 'dark' : 'light');
   }
   if (!user) return null;
