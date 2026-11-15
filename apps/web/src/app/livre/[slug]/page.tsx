@@ -7,6 +7,7 @@ import { Cover } from '@/components/cover';
 import { HeartIcon, PlayIcon } from '@/components/icons';
 import { Markdown } from '@/components/markdown';
 import { Empty, ErrorBox, Loading } from '@/components/states';
+import { useToast } from '@/components/toast';
 import { api, ApiError, fmtClock, fmtDuration } from '@/lib/api';
 import { usePlayer } from '@/lib/player';
 import { useSession } from '@/lib/session';
@@ -18,6 +19,7 @@ export default function BookPage({ params }: { params: Promise<{ slug: string }>
   const { slug } = use(params);
   const { user, isSubscriber } = useSession();
   const player = usePlayer();
+  const toast = useToast();
   const book = useApi<BookDetailDto>(`/catalog/books/${slug}`);
   const [tab, setTab] = useState<Tab>('chapitres');
   const [msg, setMsg] = useState<string | null>(null);
@@ -45,8 +47,10 @@ export default function BookPage({ params }: { params: Promise<{ slug: string }>
     book.setData({ ...b, isFavorite: !b.isFavorite });
     try {
       await api(`/library/favorites/${b.id}`, { method: b.isFavorite ? 'DELETE' : 'PUT' });
+      toast.push('success', b.isFavorite ? 'Retiré des favoris' : 'Ajouté aux favoris');
     } catch {
       book.setData(b);
+      toast.push('error', 'Action impossible');
     }
   }
 

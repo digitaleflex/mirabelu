@@ -24,6 +24,16 @@ export function Shell({ children }: { children: ReactNode }) {
   const { user } = useSession();
   const searchRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState('');
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
 
   useEffect(() => {
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
@@ -55,6 +65,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div className={`shell${track ? ' has-mini' : ''}`}>
+      {!online && <div className="offline-banner" role="status">Vous êtes hors ligne. Certaines fonctionnalités sont indisponibles.</div>}
       <aside className="sidebar" aria-label="Navigation principale">
         <Link href="/" className="brand-side">Mirabel<i>u</i><span className="brand-sub">Bibliothèque audio</span></Link>
         <nav className="side-nav">
